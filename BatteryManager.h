@@ -35,10 +35,11 @@
    that gets updated as we receive new stats.
 */
 typedef struct batteryInfo_t {
+  
   BLEAdvertisedDevice *device = NULL;
   uint16_t  characteristicHandle;
-  CircularBuffer<char, 200> *buffer = NULL;
-  BLEClient *client = NULL;
+  CircularBuffer<char, 512> *buffer = NULL;
+  
   unsigned long voltage; // voltage in mV
   unsigned long current; // current in mA
   unsigned long ampHrs;  // ampHrs in mAh
@@ -65,19 +66,6 @@ typedef struct batteryInfo_t {
 extern "C" {
   void _bm_char_callback(BLERemoteCharacteristic *, uint8_t *, size_t, bool);
 }
-class BatteryManager;
-
-class BatteryManagerClientCallbacks : public BLEClientCallbacks
-{
-public:
-  BatteryManagerClientCallbacks(BatteryManager *);
-  void onConnect(BLEClient *);
-  void onDisconnect(BLEClient *);
-  
-private:
-  BatteryManager *batteryManager;
-  
-};
 
 class BatteryManager
 {
@@ -88,9 +76,12 @@ public:
     bool addBattery(BLEAdvertisedDevice *);
     void reset();
     void loop();
-    void setPolling(bool);
+    
     void setCurrentBattery(batteryInfo_t *);
     batteryInfo_t *getBatteryByCharacteristic(uint16_t);
+    batteryInfo_t *getCurrentBattery();
+    BLEClient *getBLEClient();
+    void processBuffer();
     
     static BatteryManager *instance(uint8_t);
     
@@ -98,18 +89,18 @@ private:
     BatteryManager(uint8_t);
     BatteryManager(BatteryManager const &) {};
     BatteryManager& operator=(BatteryManager const &) {};
+
+    int16_t convertBufferStringToValue(uint8_t);
     
-    bool pollBattery();
-    
+    BLEClient *client = NULL;
+           
     uint8_t maxBatteries = 0;
     uint8_t totalBatteries = 0;
     
     batteryInfo_t **batteryData = NULL;
     batteryInfo_t *currentBattery = NULL;
-    BatteryManagerClientCallbacks *clientCallbacks = NULL;
-        
+            
     CircularBuffer<batteryInfo_t *, 50> pollingQueue;
-    bool isPolling = false;
     
     static BatteryManager *m_instance;
 };

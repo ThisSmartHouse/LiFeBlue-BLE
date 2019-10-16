@@ -23,66 +23,159 @@
 #include "BatteryManager.h"
 #include "lifeblue.h"
 
+/**
+   Helper functions to convert the data stream we get from the battery
+   (ASCII values sent as hex) and convert them to either unsigned longs
+   or uninsigned int values. This requires first converting the two ASCII
+   bytes into a 0-255 value, then shifting everything around to produce
+   the current unsigned long or unsigned int value as shown:
+
+   For example:
+
+    58920100 (directly taken from bluetooth stream)
+    5892 0100 (split into bytes)
+    9258 0001 (swap the bits within each byte)
+    0001 9258 (swap the bytes with each other)
+    0x19258 = 103000 (hex) = 103000mAh
+*/
+inline byte hexToByte(char * hex) {
+  byte high = hex[0];
+  byte low = hex[1];
+
+  if (high > '9') {
+    high -= (('A' - '0') - 0xA);
+  }
+  if (low > '9') {
+    low -= (('A' - '0') - 0xA);
+  }
+
+  return (((high & 0xF) << 4) | (low & 0xF));
+}
+
+inline unsigned int hexToInt(char * hex) {
+  return ((hexToByte(hex)) | (hexToByte(hex + 2) << 8));
+}
+
+// This is broken, not switching words.
+inline unsigned long hexToLong(char * hex) {
+  return (unsigned long)(((hexToInt(hex))) | (hexToInt(hex + 4) << 16));
+}
+
 extern "C" {
   void _bm_char_callback(BLERemoteCharacteristic *characteristic, uint8_t *data, size_t length, bool isNotify)
   {
     char *stream;
+    BLEClient *client;
     BatteryManager *batteryManager;
     batteryInfo_t *currentBattery;
+    static bool capturing = false;
+    static bool fullPacket = false;
     
     batteryManager = BatteryManager::instance(NULL);
-    currentBattery = batteryManager->getBatteryByCharacteristic(characteristic->getHandle());
-
+    currentBattery = batteryManager->getCurrentBattery();
+    
+    client = batteryManager->getBLEClient();
+    
     if(currentBattery == NULL) {
-      Serial.println("Failed to get current battery in notification callback");
+      Serial.println(" - Failed to get current battery in notification callback");
+
+      if(client->isConnected()) {
+        client->disconnect();
+      }
+      
       return;
     }
    
     stream = (char *)data;
        
     for(int i = 0; i < length; i++) {
-      currentBattery->buffer->push(stream[i]);
+        
+        currentBattery->buffer->push(stream[i]);
+        
+        if(currentBattery->buffer->first() == (char)0x87) {
+
+          currentBattery->buffer->shift(); // get rid of 0x87
+          currentBattery->characteristicHandle = 0;
+                
+          if(client->isConnected()) {
+            client->disconnect();
+          }
+
+          Serial.println("");
+          
+          batteryManager->processBuffer();
+          
+          currentBattery->buffer->clear();
+          batteryManager->setCurrentBattery(NULL);
+            
+          return;
+        }
+
     }
 
-    if(currentBattery->buffer->first() == (char) 0x87) {
-      Serial.printf("Captured Full data packet for battery (%ld bytes)\n", currentBattery->buffer->size());
-      Serial.printf("Disconnecting from %s\n", currentBattery->client->getPeerAddress().toString().c_str());
-      
-      currentBattery->characteristicHandle = 0;
-
-      if(currentBattery->client->isConnected()) {
-        currentBattery->client->disconnect();
-      }
-      
-      //delete currentBattery->client;
-
-      currentBattery->client = NULL;
-      currentBattery->buffer->clear();
-      batteryManager->setPolling(false);
-      batteryManager->setCurrentBattery(NULL);
-      
-    }
+    Serial.print('.');
   }
 }
 
 BatteryManager *BatteryManager::m_instance = NULL;
 
-void BatteryManagerClientCallbacks::onConnect(BLEClient *client)
+void BatteryManager::processBuffer()
 {
-  Serial.printf("Client for %s connected\n", client->getPeerAddress().toString().c_str());
+  char buf[9];
+
+  if(!currentBattery) {
+    return;
+  }
+
+  currentBattery->voltage = convertBufferStringToValue(8);
+  currentBattery->current = convertBufferStringToValue(8);
+  currentBattery->ampHrs = convertBufferStringToValue(8);
+  currentBattery->cycleCount = convertBufferStringToValue(4);
+  currentBattery->soc = convertBufferStringToValue(4);
+  currentBattery->temp = convertBufferStringToValue(4) - 2731;
+  currentBattery->status = convertBufferStringToValue(8);
+  currentBattery->afeStatus = convertBufferStringToValue(8);
+
+  Serial.printf("Voltage: %lu (V)\nCurrent: %lu (A)\nAmp Hrs: %l\nCycles: %u\nSOC: %u (%%)\nTemp: %u (C)\n",
+                currentBattery->voltage, currentBattery->current, currentBattery->ampHrs,
+                currentBattery->cycleCount, currentBattery->soc, currentBattery->temp);
+  
 }
 
-void BatteryManagerClientCallbacks::onDisconnect(BLEClient *client)
+int16_t BatteryManager::convertBufferStringToValue(uint8_t len)
 {
-  Serial.printf("Client for %s disconnected\n", client->getPeerAddress().toString().c_str());
+  char buf[9] = {NULL};
+
+  if((len != 8) && (len != 4)) {
+    return -1;
+  }
+
+  for(int i = 0; (i < len) && !currentBattery->buffer->isEmpty(); i++) {
+    buf[i] = currentBattery->buffer->shift();
+  }
+ 
+  switch(len) {
+    case 4:
+      return (int16_t)hexToInt(buf);
+    case 8:
+      return (int16_t)hexToLong(buf);
+  }
+
+  return -1;
+}
+
+batteryInfo_t *BatteryManager::getCurrentBattery()
+{
+  return currentBattery;
+}
+
+BLEClient *BatteryManager::getBLEClient()
+{
+  return client;
 }
 
 void BatteryManager::setCurrentBattery(batteryInfo_t *b) {
   currentBattery = b;
-}
-
-void BatteryManager::setPolling(bool b) {
-  isPolling = b;
 }
 
 batteryInfo_t *BatteryManager::getBatteryByCharacteristic(uint16_t handle)
@@ -96,22 +189,16 @@ batteryInfo_t *BatteryManager::getBatteryByCharacteristic(uint16_t handle)
   return NULL;
 }
 
-BatteryManagerClientCallbacks::BatteryManagerClientCallbacks(BatteryManager *b)
-{
-  batteryManager = b;
-}
-
 BatteryManager::BatteryManager(uint8_t mb)
 {
   maxBatteries = mb;
   totalBatteries = 0;
-  clientCallbacks = new BatteryManagerClientCallbacks(this);
-
+  
   batteryData = (batteryInfo_t **)os_zalloc(maxBatteries * sizeof(batteryInfo_t *));
 
   for(int i = 0; i < maxBatteries; i++) {
     batteryData[i] = (batteryInfo_t *)os_zalloc(sizeof(batteryInfo_t));
-    batteryData[i]->buffer = new CircularBuffer<char, 200>();
+    batteryData[i]->buffer = new CircularBuffer<char, 512>();
   }
 }
 
@@ -150,7 +237,7 @@ void BatteryManager::reset()
 
    for(int i = 0; i < maxBatteries; i++) {
      batteryData[i] = (batteryInfo_t *)os_zalloc(sizeof(batteryInfo_t));
-      batteryData[i]->buffer = new CircularBuffer<char, 200>();
+      batteryData[i]->buffer = new CircularBuffer<char, 512>();
    }
    
    totalBatteries = 0;
@@ -173,81 +260,78 @@ bool BatteryManager::addBattery(BLEAdvertisedDevice *device)
   return true;
 }
 
-bool BatteryManager::pollBattery()
+void BatteryManager::loop()
 {
   BLERemoteService *remoteService;
   BLERemoteCharacteristic *characteristic;
 
-  isPolling = true;
-  
-  if(!currentBattery) {
-    isPolling = false;  
-    return false;
-  }
-
-  Serial.printf(" - Polling %s\n", currentBattery->device->getAddress().toString().c_str());
-  
-  currentBattery->client = BLEDevice::createClient();
-  currentBattery->client->setClientCallbacks(clientCallbacks);
-  
-  if(!currentBattery->client->connect(currentBattery->device)) {
-    isPolling = false;
-    delete currentBattery->client;
-    currentBattery->client = NULL;
-    return false;  
+  if(client) {
+    if(client->isConnected()) {
+      return;
+    }
   }
   
-  Serial.println(" - Connected to Battery");
-  
-  remoteService = currentBattery->client->getService(serviceUUID);
-  if(remoteService == nullptr) {
-    Serial.println(" - FAILURE: Could not find service UUID");
-    
-    currentBattery->client->disconnect();
-    delete currentBattery->client;
-    currentBattery->client = NULL;
-    isPolling = false;
-    return false;
-  }
-
-  characteristic = remoteService->getCharacteristic(charUUID);
-
-  if(characteristic == nullptr) {
-    Serial.println(" - FAILURE: Could not find characteristic UUID");
-    
-    currentBattery->client->disconnect();
-    delete currentBattery->client;
-    currentBattery->client = NULL;
-    isPolling = false;
-    return false;
-  }
-
-  if(!characteristic->canNotify()) {
-    Serial.println(" - FAILURE: characteristic UUID cannot notify");
-
-    currentBattery->client->disconnect();
-    delete currentBattery->client;
-    currentBattery->client = NULL;
-    isPolling = false;
-    return false;
-  }
-  
-  currentBattery->characteristicHandle = characteristic->getHandle();
-  characteristic->registerForNotify(_bm_char_callback);
-}
-
-void BatteryManager::loop()
-{
-  if(pollingQueue.isEmpty() && !isPolling) {
-    Serial.println("Queue empty, adding batteries back to be polled");
+  if(pollingQueue.isEmpty()) {
+    Serial.println("- Queue empty, adding batteries back to be polled");
     for(int i = 0; i < totalBatteries; i++) {
       pollingQueue.push(batteryData[i]);
     }
   }
 
-  if(!pollingQueue.isEmpty() && !isPolling) {
+  if(!pollingQueue.isEmpty()) {
     currentBattery = pollingQueue.pop();
-    pollBattery();
+
+    Serial.printf(" - Connecting to Battery: %s\n", currentBattery->device->getAddress().toString().c_str());
+    
+    if(client) {
+      delete client;
+      client = NULL;
+    }
+    
+    client = BLEDevice::createClient();
+    
+    if(!client->connect(currentBattery->device)) {
+      Serial.println(" - Failed to connect to battery, requeuing");
+      delete client;
+      client = NULL;
+      pollingQueue.push(currentBattery);
+      return;
+    }
+
+    remoteService = client->getService(serviceUUID);
+
+    if(remoteService == nullptr) {
+      Serial.println(" - FAILURE: Could not find service UUID");
+      client->disconnect();
+      delete client;
+      client = NULL;
+      pollingQueue.push(currentBattery);
+      return;
+    }
+
+    characteristic = remoteService->getCharacteristic(charUUID);
+
+    if(characteristic == nullptr) {
+      Serial.println(" - FAILURE: Could not find characteristic UUID");
+      client->disconnect();
+      delete client;
+      client = NULL;
+      pollingQueue.push(currentBattery);
+      return;
+    }
+
+    if(!characteristic->canNotify()) {
+      Serial.println(" - FAILURE: characteristic UUID cannot notify");
+      client->disconnect();
+      delete client;
+      client = NULL;
+      pollingQueue.push(currentBattery);  
+      return;
+    }
+  
+    currentBattery->characteristicHandle = characteristic->getHandle();
+    characteristic->registerForNotify(_bm_char_callback);
+   
   }
   
   delay(2000);

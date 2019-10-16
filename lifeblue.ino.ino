@@ -22,7 +22,6 @@
 
 #include <CircularBuffer.h>
 #include "lifeblue.h"
-#include "hex_functions.h"
 
 BatteryManager *batteryManager;
 BLEScan *bleScanner;
