@@ -122,6 +122,10 @@ BatteryManager *BatteryManager::m_instance = NULL;
  * SUM_byte1H, SUM_byte1L, SUM_byte2H, SUM_byte2L
  * 
  * At the moment I don't try to confirm the values we've read with the checksum, maybe later.
+ * 
+ * For the status fields (status and afeStatus) these are bitmasks. I don't know what all of the bits represent
+ * but I know a good portion of them which I have pulled out as booleans in the status and provided matching
+ * defines for.
  */
 void BatteryManager::processBuffer()
 {
@@ -159,6 +163,14 @@ void BatteryManager::processBuffer()
   DEBUG_DUMP_BATTERYINFO(currentBattery);
 }
 
+/**
+ * Helper method. Given a length of ASCII data (in bytes) from the buffer,
+ * it extracts the numeric value it represents. Since the data comes across
+ * to use in big endian format we take advantage of the __builtin_bswap* family
+ * of functions available in GCC here. Normally I'd avoid using compiler-specific
+ * things but we're not going to be compiling anything for ESP32s using anything
+ * but a GCC compiler here.
+ */
 uint32_t BatteryManager::convertBufferStringToValue(uint8_t len)
 {
   char buf[9] = {NULL};
@@ -181,31 +193,37 @@ uint32_t BatteryManager::convertBufferStringToValue(uint8_t len)
   return -1;
 }
 
+/**
+ * Returns the current battery being processed
+ */
 batteryInfo_t *BatteryManager::getCurrentBattery()
 {
   return currentBattery;
 }
 
+/**
+ * Returns the instance of BLEClient we are presently using
+ */
 BLEClient *BatteryManager::getBLEClient()
 {
   return client;
 }
 
+/**
+ * Sets the current battery being processed, or NULL
+ */
 void BatteryManager::setCurrentBattery(batteryInfo_t *b) {
   currentBattery = b;
 }
 
-batteryInfo_t *BatteryManager::getBatteryByCharacteristic(uint16_t handle)
-{
-  for(int i = 0; i < totalBatteries; i++) {
-    if(batteryData[i]->characteristicHandle == handle) {
-      return batteryData[i];
-    }
-  }
-
-  return NULL;
-}
-
+/**
+ * Private constructor. There can be only one instance of this class
+ * so it's implemented as a singleton. First parameter is maximum batteries
+ * to keep track of, the second is the number of cells for each battery.
+ * 
+ * Note: We do not support a mixture of batteries with different numbers of
+ * cells in each.
+ */
 BatteryManager::BatteryManager(uint8_t mb, uint8_t tc)
 {
   maxBatteries = mb;
@@ -220,6 +238,9 @@ BatteryManager::BatteryManager(uint8_t mb, uint8_t tc)
   }
 }
 
+/**
+ * Retrieve a (new) instance of the BatteryManager
+ */
 BatteryManager *BatteryManager::instance(uint8_t mb, uint8_t tc)
 {
   if(!m_instance) {
@@ -229,11 +250,17 @@ BatteryManager *BatteryManager::instance(uint8_t mb, uint8_t tc)
   return m_instance;
 }
 
+/**
+ * Retrieve the existing instance of the battery manager
+ */
 BatteryManager *BatteryManager::instance()
 {
   return instance(NULL, NULL);
 }
 
+/**
+ * Reset the battery manager internal data structures
+ */
 void BatteryManager::reset()
 {
   Serial.println("- Resetting BatteryManager");
@@ -264,6 +291,10 @@ void BatteryManager::reset()
    totalBatteries = 0;
 }
 
+/**
+ * Add another battery device to our monitoring, we get the
+ * device as a result of a BLE scan in the main codebase.
+ */
 bool BatteryManager::addBattery(BLEAdvertisedDevice *device)
 {
   if(totalBatteries == maxBatteries) {
@@ -279,6 +310,15 @@ bool BatteryManager::addBattery(BLEAdvertisedDevice *device)
   return true;
 }
 
+/**
+ * The main loop function. The way this works is the manager has a list
+ * of batteries it's monitoring and uses a stack to do them one at a time. If
+ * for some reason we can't connect to the battery right away (happens from time to time),
+ * we push the battery back on the stack to be re-processed. Otherwise, we pop the next battery
+ * off the stack and process it until there are no batteries left to process. At that point,
+ * we loop through all of the batteries and push them all back on the stack.
+ * 
+ */
 void BatteryManager::loop()
 {
   BLERemoteService *remoteService;

@@ -48,9 +48,9 @@
 #define LIFE_SHORT_CIRCUITED 0x10
 
 /**
-   This is the struct that holds the "raw" data from the battery
-   that gets updated as we receive new stats.
-*/
+ * This is the struct that holds the "raw" data from the battery
+ * that gets updated as we receive new stats.
+ */
 typedef struct batteryInfo_t {
   
   BLEAdvertisedDevice *device = NULL;
@@ -79,6 +79,8 @@ typedef struct batteryInfo_t {
   
 };
 
+
+// Handy debug dump function that dumps out our struct so we can see
 #define DEBUG_DUMP_BATTERYINFO(_i) \
    Serial.printf("BatteryInfo for %s\n", _i->device->getAddress().toString().c_str()); \
    Serial.println("-=-=-=-=-=-=-=-=-=-"); \
@@ -115,7 +117,6 @@ public:
     void loop();
     
     void setCurrentBattery(batteryInfo_t *);
-    batteryInfo_t *getBatteryByCharacteristic(uint16_t);
     batteryInfo_t *getCurrentBattery();
     BLEClient *getBLEClient();
     void processBuffer();
