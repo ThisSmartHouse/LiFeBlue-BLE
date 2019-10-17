@@ -20,34 +20,53 @@
   +----------------------------------------------------------------------+
 */
 
-#ifndef LIFEBLUE_H_
-#define LIFEBLUE_H_
+#ifndef LIFEDISPLAYMGR_H_
+#define LIFEDISPLAYMGR_H_
 
-#include <BLEDevice.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
 #include "BatteryManager.h"
-#include "DisplayManager.h"
 
-#define CLIENT_DEVICE_NAME "lifeblue-client"
-
-#ifndef SERIAL_BAUD
-#define SERIAL_BAUD 115200
+#ifndef SCREEN_WIDTH
+#define SCREEN_WIDTH 128
 #endif
 
-#ifndef MAX_BATTERIES
-#define MAX_BATTERIES 10
+#ifndef SCREEN_HEIGHT
+#define SCREEN_HEIGHT 64
 #endif
 
-#ifndef CELLS_PER_BATTERY
-#define CELLS_PER_BATTERY 4
+#ifndef OLED_RESET_PIN
+#define OLED_RESET_PIN -1
 #endif
 
-// The service UUID of the LiFeBlue battery
-static BLEUUID serviceUUID((uint16_t)0xffe0);
-static BLEUUID    charUUID((uint16_t)0xffe4);
+#ifndef OLED_ADDRESS
+#define OLED_ADDRESS 0x3C
+#endif
 
-int16_t getBufferValue(uint8_t);
-void processBuffer();
-static void notifyCallback(BLERemoteCharacteristic *, uint8_t *, size_t, bool);
-void onBLEScanComplete(BLEScanResults);
+class BatteryManager;
+
+class DisplayManager
+{
+
+public:
+  void setup();
+
+  void scanningScreen(uint8_t);
+  void statusScreen();
+  
+  static DisplayManager *instance();
+
+private:
+  DisplayManager();
+  DisplayManager(DisplayManager const &) {};
+  DisplayManager& operator=(DisplayManager const &) {};
+  
+  void drawProgress(uint8_t, uint8_t, uint8_t, uint8_t, uint8_t);
+    
+  static DisplayManager *m_instance;
+  Adafruit_SSD1306 *display;
+  BatteryManager *batteryManager;
+  uint8_t currentBattery;
+};
 
 #endif

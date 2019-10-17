@@ -193,6 +193,25 @@ uint32_t BatteryManager::convertBufferStringToValue(uint8_t len)
   return -1;
 }
 
+uint8_t BatteryManager::getTotalCells()
+{
+  return totalCells;
+}
+
+batteryInfo_t *BatteryManager::getBattery(uint8_t idx)
+{
+  if(idx >= totalBatteries) {
+    return NULL;
+  }
+
+  return batteryData[idx];
+}
+
+uint8_t BatteryManager::getTotalBatteries()
+{
+  return totalBatteries;
+}
+
 /**
  * Returns the current battery being processed
  */

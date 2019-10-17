@@ -118,6 +118,9 @@ public:
     
     void setCurrentBattery(batteryInfo_t *);
     batteryInfo_t *getCurrentBattery();
+    batteryInfo_t *getBattery(uint8_t);
+    uint8_t getTotalBatteries();
+    uint8_t getTotalCells();
     BLEClient *getBLEClient();
     void processBuffer();
     
