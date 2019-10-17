@@ -35,6 +35,19 @@
 #endif
 
 /**
+ * Various bit values for each flag in either the status or afeStatus variable
+ */
+#define LIFE_CELL_HIGH_VOLTAGE 0x80
+#define LIFE_CELL_LOW_VOLTAGE 0x40
+#define LIFE_OVER_CURRENT_WHEN_CHARGE 0x20
+#define LIFE_OVER_CURRENT_WHEN_DISCHARGE 0x10
+#define LIFE_LOW_TEMP_WHEN_DISCHARGE 0x8
+#define LIFE_LOW_TEMP_WHEN_CHARGE 0x4
+#define LIFE_HIGH_TEMP_WHEN_DISCHARGE 0x2
+#define LIFE_HIGH_TEMP_WHEN_CHARGE 0x1
+#define LIFE_SHORT_CIRCUITED 0x10
+
+/**
    This is the struct that holds the "raw" data from the battery
    that gets updated as we receive new stats.
 */
@@ -53,21 +66,39 @@ typedef struct batteryInfo_t {
   uint16_t status; // Status Bitmask
   uint16_t afeStatus; // afeStatus Bitmask
   uint16_t cells[MAX_BATTERY_CELLS];
+
+  bool cell_high_voltage = false;
+  bool cell_low_voltage = false;
+  bool over_current_when_charge = false;
+  bool over_current_when_discharge = false;
+  bool low_temp_when_discharge = false;
+  bool low_temp_when_charge = false;
+  bool high_temp_when_discharge = false;
+  bool high_temp_when_charge = false;
+  bool short_circuited = false;
   
 };
 
 #define DEBUG_DUMP_BATTERYINFO(_i) \
-   Serial.println("BatteryInfo for %d", _i); \
+   Serial.printf("BatteryInfo for %s\n", _i->device->getAddress().toString().c_str()); \
    Serial.println("-=-=-=-=-=-=-=-=-=-"); \
-   Serial.printf("Has Device: %s\n", (batteryData[_i]->device) ? "Y" : "N"); \
-   Serial.printf("Has Client: %s\n", (batteryData[_i]->client) ? "Y" : "N"); \
-   Serial.printf("Handle: %d\n", batteryData[_i]->handle); \
-   Serial.printf("Voltage: %ld\n", batteryData[_i]->voltage); \
-   Serial.printf("Current: %ld\n", batteryData[_i]->current); \
-   Serial.printf("Amp Hrs: %ld\n", batteryData[_i]->ampHrs); \
-   Serial.printf("Cycles: %ld\n", batteryData[_i]->cycleCount); \
-   Serial.printf("SoC: %d%%\n", batteryData[_i]->soc); \
-   Serial.printf("Temp: %d (C)\n", batteryData[_i]->temp);
+   Serial.printf("Voltage: %.2fV\n", ((float)_i->voltage) / 1000); \
+   Serial.printf("Current: %.2fA\n", ((float)_i->current) / 1000); \
+   Serial.printf("Amp Hrs: %.2fAh\n", ((float)_i->ampHrs) / 1000); \
+   Serial.printf("Cycles: %u\n", _i->cycleCount); \
+   Serial.printf("SoC: %u%%\n", _i->soc); \
+   Serial.printf("Temp: %.1f (C) %.2f (F)\n", ((float)_i->temp) / 10, (((float)_i->temp) / 10) * 1.8 + 32); \
+   for(int i = 0; i < totalCells; i++) Serial.printf("%lu (mV) ", _i->cells[i]); \
+   Serial.printf("\nCell High Voltage: %s\n", _i->cell_high_voltage ? "X" : "-"); \
+   Serial.printf("Cell Low Voltage: %s\n", _i->cell_low_voltage ? "X" : "-"); \
+   Serial.printf("Over Current When Charge: %s\n", _i->over_current_when_charge ? "X" : "-"); \
+   Serial.printf("Over Current When Discharge: %s\n", _i->over_current_when_discharge ? "X" : "-"); \
+   Serial.printf("Low Temp When Charge: %s\n", _i->low_temp_when_charge ? "X" : "-"); \
+   Serial.printf("Low Temp When Discharge: %s\n", _i->low_temp_when_discharge ? "X" : "-"); \
+   Serial.printf("High Temp When Charge: %s\n", _i->high_temp_when_charge ? "X" : "-"); \
+   Serial.printf("High Temp When Discharge: %s\n", _i->high_temp_when_discharge ? "X" : "-"); \
+   Serial.printf("Is Short Circuited: %s\n", _i->short_circuited ? "X" : "-"); \
+   Serial.printf("");
 
 extern "C" {
   void _bm_char_callback(BLERemoteCharacteristic *, uint8_t *, size_t, bool);

@@ -27,11 +27,16 @@ BatteryManager *batteryManager;
 BLEScan *bleScanner;
 bool scanning = false;
 
+/**
+ * Called after a BLE scan is complete where we look through the results
+ * and pull any batteries we find out. We add them to the Battery Manager
+ * as devices, which it then uses to connect to one at a time and get the
+ * data from.
+ */
 void onBLEScanComplete(BLEScanResults results)
 {
    batteryManager->reset();
-   Serial.println("Reset Battery Manager");
-   
+      
    for(int i = 0; i < results.getCount(); i++) {
      
       if(!results.getDevice(i).haveServiceUUID()) {
@@ -51,6 +56,9 @@ void onBLEScanComplete(BLEScanResults results)
    delete bleScanner;
 }
 
+/**
+ * Simple helper function to configure a BLE scan to start
+ */
 void startDeviceScan() 
 {
   Serial.println("- Starting BLE Device Scan...");
@@ -66,6 +74,9 @@ void startDeviceScan()
   
 }
 
+/**
+ * Initialize the program and start scanning for our batteries!
+ */
 void setup() {
   Serial.begin(115200);
 
@@ -88,8 +99,13 @@ void setup() {
   
 }
 
+/**
+ * This function is called over and over again every cycle and where the bulk of the
+ * program actually does it's real work. In our case we call the BatteryManager's loop
+ * to update the status of all of our batteries and then we will transmit those statuses
+ * via MQTT
+ */
 void loop() {
-  // put your main code here, to run repeatedly:
 
   if(scanning) {
     return;

@@ -24,6 +24,21 @@
 #include "lifeblue.h"
 
 extern "C" {
+
+  /**
+   * This callback is what is called when the battery we are connected to sends use a Bluetooth Notification
+   * via the proper characteristic. Each notification is only a fragment of the total data packet.
+   * 
+   * So what we have to do here is store the data as it comes in as chuncks until we hit the magic 0x87
+   * character. This character indicates the start of the data stream and we know we've captured a full packet!
+   * 
+   * Although it's probably not strictly necessary and a bit of a resource waste, this implementation uses
+   * a separate buffer for each battery. I may refactor it someday to use a single buffer since we never maintain
+   * a connection to multiple batteries at once (I found the ESP32 BLE library pretty buggy when I tried).
+   * 
+   * Once we have a full packet we call processBuffer(), which extracts the data and stores it with that
+   * particular device.
+   */
   void _bm_char_callback(BLERemoteCharacteristic *characteristic, uint8_t *data, size_t length, bool isNotify)
   {
     char *stream;
@@ -74,13 +89,40 @@ extern "C" {
         }
 
     }
-
-    Serial.print('.');
   }
 }
 
+/**
+ * Initialize our m_instance variable to NULL so we create an instance of our BatteryManager singleton
+ * when we first start.
+ */
 BatteryManager *BatteryManager::m_instance = NULL;
 
+/**
+ * Process the current battery's buffer. The battery's transmit their data as ASCII hexadecimal values
+ * in big endian format. The format of the buffer is as follows:
+ * 
+ * V_byte1H, Vbyte1L, V_byte2H, V_byte2L, V_byte3H, V_byte3L, V_byte4H, V_byte4L  // Voltage (in mV)
+ * C_byte1H, C_byte1L, C_byte2H, C_byte2L, C_byte3H, C_byte3L, C_byte4H, C_byte4L // Current Draw (in mA)
+ * A_byte1H, A_byte1L, A_byte2H, A_byte2L, A_byte3H, A_byte3L, A_byte4H, A_byte4L // AmpHrs (in mAh)
+ * CY_byte1H, CY_byte1L, CY_byte2H, CY_byte2L // Total Cycles
+ * S_byte1H, S_byte1L, S_byte2H, S_byte2L // State of Charge (% remaining)
+ * T_byte1H, T_byte1L, T_byte2H, T_byte2L // Temperature (need to subtract 2731) i.e. (2931 - 2731) / 10 = 20.0C
+ * BS_byte1H, BS_byte1L, BS_byte2H, BS_byte2L // Status of Battery (bitmask)
+ * AFE_byte1H, AFE_byte1L, AFE_byte2H, AFE_byte2L // AFE status (bitmask)
+ * 
+ * Following this is the data for each individual cell of the battery in the format:
+ * 
+ * CELL_byte1H, CELL_byte1L, CELL_byte2H, CELL_byte2L // Cell voltage (in mV)
+ * 
+ * for as many cells as the battery has (mine has 4)
+ * 
+ * Finally we have the checksum:
+ * 
+ * SUM_byte1H, SUM_byte1L, SUM_byte2H, SUM_byte2L
+ * 
+ * At the moment I don't try to confirm the values we've read with the checksum, maybe later.
+ */
 void BatteryManager::processBuffer()
 {
   char buf[9];
@@ -102,15 +144,19 @@ void BatteryManager::processBuffer()
   for(int i = 0; i < totalCells; i++) {
     currentBattery->cells[i] = convertBufferStringToValue(4);
   }
-  
-  Serial.printf("Voltage: %lu (V)\nCurrent: %lu (A)\nAmp Hrs: %lu\nCycles: %u\nSOC: %u (%%)\nTemp: %u (C)\n",
-                currentBattery->voltage, currentBattery->current, currentBattery->ampHrs,
-                currentBattery->cycleCount, currentBattery->soc, currentBattery->temp);
-  for(int i = 0; i < totalCells; i++) {
-    Serial.printf("%lu (mV) ", currentBattery->cells[i]);
-  }
 
-  Serial.println("");
+  currentBattery->cell_high_voltage = (currentBattery->status & LIFE_CELL_HIGH_VOLTAGE);
+  currentBattery->cell_low_voltage = (currentBattery->status  & LIFE_CELL_LOW_VOLTAGE);
+  currentBattery->over_current_when_charge = (currentBattery->status & LIFE_OVER_CURRENT_WHEN_CHARGE);
+  currentBattery->over_current_when_discharge = (currentBattery->status & LIFE_OVER_CURRENT_WHEN_DISCHARGE);
+  currentBattery->low_temp_when_discharge = (currentBattery->status & LIFE_LOW_TEMP_WHEN_DISCHARGE);
+  currentBattery->low_temp_when_charge = (currentBattery->status & LIFE_LOW_TEMP_WHEN_CHARGE);
+  currentBattery->high_temp_when_discharge = (currentBattery->status & LIFE_HIGH_TEMP_WHEN_DISCHARGE);
+  currentBattery->high_temp_when_charge = (currentBattery->status & LIFE_HIGH_TEMP_WHEN_CHARGE);
+  
+  currentBattery->short_circuited = (currentBattery->afeStatus & LIFE_SHORT_CIRCUITED);
+  
+  DEBUG_DUMP_BATTERYINFO(currentBattery);
 }
 
 uint32_t BatteryManager::convertBufferStringToValue(uint8_t len)
@@ -190,9 +236,8 @@ BatteryManager *BatteryManager::instance()
 
 void BatteryManager::reset()
 {
-  Serial.println("Resetting batteries");
-  Serial.printf("Max Batteries: %d\n", maxBatteries);
-  
+  Serial.println("- Resetting BatteryManager");
+    
    if(batteryData) {
      for(int i = 0; i < maxBatteries; i++) {
        if(batteryData[i]->device) {
@@ -217,8 +262,6 @@ void BatteryManager::reset()
    }
    
    totalBatteries = 0;
-
-   Serial.println("All done reset");
 }
 
 bool BatteryManager::addBattery(BLEAdvertisedDevice *device)
@@ -248,7 +291,6 @@ void BatteryManager::loop()
   }
   
   if(pollingQueue.isEmpty()) {
-    Serial.println("- Queue empty, adding batteries back to be polled");
     for(int i = 0; i < totalBatteries; i++) {
       pollingQueue.push(batteryData[i]);
     }
@@ -257,7 +299,7 @@ void BatteryManager::loop()
   if(!pollingQueue.isEmpty()) {
     currentBattery = pollingQueue.pop();
 
-    Serial.printf(" - Connecting to Battery: %s\n", currentBattery->device->getAddress().toString().c_str());
+    Serial.printf("\n- Connecting to Battery: %s\n", currentBattery->device->getAddress().toString().c_str());
     
     if(client) {
       delete client;
