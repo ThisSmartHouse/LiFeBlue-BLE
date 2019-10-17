@@ -30,6 +30,10 @@
 #include <BLEDevice.h>
 #include <CircularBuffer.h>
 
+#ifndef MAX_BATTERY_CELLS
+#define MAX_BATTERY_CELLS 16
+#endif
+
 /**
    This is the struct that holds the "raw" data from the battery
    that gets updated as we receive new stats.
@@ -40,14 +44,16 @@ typedef struct batteryInfo_t {
   uint16_t  characteristicHandle;
   CircularBuffer<char, 512> *buffer = NULL;
   
-  unsigned long voltage; // voltage in mV
-  unsigned long current; // current in mA
-  unsigned long ampHrs;  // ampHrs in mAh
-  unsigned int cycleCount; // cycles
-  unsigned int soc; // State of Charge (%)
-  unsigned int temp; // Temperature in C
-  unsigned long status; // Status Bitmask
-  unsigned long afeStatus; // afeStatus Bitmask
+  uint32_t voltage; // voltage in mV
+  uint32_t current; // current in mA
+  uint32_t ampHrs;  // ampHrs in mAh
+  uint16_t cycleCount; // cycles
+  uint16_t soc; // State of Charge (%)
+  uint16_t temp; // Temperature in C
+  uint16_t status; // Status Bitmask
+  uint16_t afeStatus; // afeStatus Bitmask
+  uint16_t cells[MAX_BATTERY_CELLS];
+  
 };
 
 #define DEBUG_DUMP_BATTERYINFO(_i) \
@@ -83,19 +89,21 @@ public:
     BLEClient *getBLEClient();
     void processBuffer();
     
-    static BatteryManager *instance(uint8_t);
+    static BatteryManager *instance(uint8_t, uint8_t);
+    static BatteryManager *instance();
     
 private:
-    BatteryManager(uint8_t);
+    BatteryManager(uint8_t, uint8_t);
     BatteryManager(BatteryManager const &) {};
     BatteryManager& operator=(BatteryManager const &) {};
 
-    int16_t convertBufferStringToValue(uint8_t);
+    uint32_t convertBufferStringToValue(uint8_t);
     
     BLEClient *client = NULL;
            
     uint8_t maxBatteries = 0;
     uint8_t totalBatteries = 0;
+    uint8_t totalCells = 0;
     
     batteryInfo_t **batteryData = NULL;
     batteryInfo_t *currentBattery = NULL;

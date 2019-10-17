@@ -27,7 +27,14 @@
 #include "BatteryManager.h"
 
 #define CLIENT_DEVICE_NAME "lifeblue-client"
+
+#ifndef MAX_BATTERIES
 #define MAX_BATTERIES 10
+#endif
+
+#ifndef CELLS_PER_BATTERY
+#define CELLS_PER_BATTERY 4
+#endif
 
 // The service UUID of the LiFeBlue battery
 static BLEUUID serviceUUID((uint16_t)0xffe0);

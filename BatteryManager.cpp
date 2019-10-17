@@ -23,44 +23,6 @@
 #include "BatteryManager.h"
 #include "lifeblue.h"
 
-/**
-   Helper functions to convert the data stream we get from the battery
-   (ASCII values sent as hex) and convert them to either unsigned longs
-   or uninsigned int values. This requires first converting the two ASCII
-   bytes into a 0-255 value, then shifting everything around to produce
-   the current unsigned long or unsigned int value as shown:
-
-   For example:
-
-    58920100 (directly taken from bluetooth stream)
-    5892 0100 (split into bytes)
-    9258 0001 (swap the bits within each byte)
-    0001 9258 (swap the bytes with each other)
-    0x19258 = 103000 (hex) = 103000mAh
-*/
-inline byte hexToByte(char * hex) {
-  byte high = hex[0];
-  byte low = hex[1];
-
-  if (high > '9') {
-    high -= (('A' - '0') - 0xA);
-  }
-  if (low > '9') {
-    low -= (('A' - '0') - 0xA);
-  }
-
-  return (((high & 0xF) << 4) | (low & 0xF));
-}
-
-inline unsigned int hexToInt(char * hex) {
-  return ((hexToByte(hex)) | (hexToByte(hex + 2) << 8));
-}
-
-// This is broken, not switching words.
-inline unsigned long hexToLong(char * hex) {
-  return (unsigned long)(((hexToInt(hex))) | (hexToInt(hex + 4) << 16));
-}
-
 extern "C" {
   void _bm_char_callback(BLERemoteCharacteristic *characteristic, uint8_t *data, size_t length, bool isNotify)
   {
@@ -71,7 +33,7 @@ extern "C" {
     static bool capturing = false;
     static bool fullPacket = false;
     
-    batteryManager = BatteryManager::instance(NULL);
+    batteryManager = BatteryManager::instance();
     currentBattery = batteryManager->getCurrentBattery();
     
     client = batteryManager->getBLEClient();
@@ -130,19 +92,28 @@ void BatteryManager::processBuffer()
   currentBattery->voltage = convertBufferStringToValue(8);
   currentBattery->current = convertBufferStringToValue(8);
   currentBattery->ampHrs = convertBufferStringToValue(8);
+  
   currentBattery->cycleCount = convertBufferStringToValue(4);
   currentBattery->soc = convertBufferStringToValue(4);
   currentBattery->temp = convertBufferStringToValue(4) - 2731;
-  currentBattery->status = convertBufferStringToValue(8);
-  currentBattery->afeStatus = convertBufferStringToValue(8);
+  currentBattery->status = convertBufferStringToValue(4);
+  currentBattery->afeStatus = convertBufferStringToValue(4);
 
-  Serial.printf("Voltage: %lu (V)\nCurrent: %lu (A)\nAmp Hrs: %l\nCycles: %u\nSOC: %u (%%)\nTemp: %u (C)\n",
+  for(int i = 0; i < totalCells; i++) {
+    currentBattery->cells[i] = convertBufferStringToValue(4);
+  }
+  
+  Serial.printf("Voltage: %lu (V)\nCurrent: %lu (A)\nAmp Hrs: %lu\nCycles: %u\nSOC: %u (%%)\nTemp: %u (C)\n",
                 currentBattery->voltage, currentBattery->current, currentBattery->ampHrs,
                 currentBattery->cycleCount, currentBattery->soc, currentBattery->temp);
-  
+  for(int i = 0; i < totalCells; i++) {
+    Serial.printf("%lu (mV) ", currentBattery->cells[i]);
+  }
+
+  Serial.println("");
 }
 
-int16_t BatteryManager::convertBufferStringToValue(uint8_t len)
+uint32_t BatteryManager::convertBufferStringToValue(uint8_t len)
 {
   char buf[9] = {NULL};
 
@@ -153,12 +124,12 @@ int16_t BatteryManager::convertBufferStringToValue(uint8_t len)
   for(int i = 0; (i < len) && !currentBattery->buffer->isEmpty(); i++) {
     buf[i] = currentBattery->buffer->shift();
   }
- 
-  switch(len) {
+
+  switch(strlen(buf)) {
     case 4:
-      return (int16_t)hexToInt(buf);
+      return __builtin_bswap16(strtoul(buf, NULL, 16));
     case 8:
-      return (int16_t)hexToLong(buf);
+      return __builtin_bswap32(strtoul(buf, NULL, 16));
   }
 
   return -1;
@@ -189,10 +160,11 @@ batteryInfo_t *BatteryManager::getBatteryByCharacteristic(uint16_t handle)
   return NULL;
 }
 
-BatteryManager::BatteryManager(uint8_t mb)
+BatteryManager::BatteryManager(uint8_t mb, uint8_t tc)
 {
   maxBatteries = mb;
   totalBatteries = 0;
+  totalCells = (tc > MAX_BATTERY_CELLS) ? MAX_BATTERY_CELLS : tc;
   
   batteryData = (batteryInfo_t **)os_zalloc(maxBatteries * sizeof(batteryInfo_t *));
 
@@ -202,15 +174,19 @@ BatteryManager::BatteryManager(uint8_t mb)
   }
 }
 
-BatteryManager *BatteryManager::instance(uint8_t mb)
+BatteryManager *BatteryManager::instance(uint8_t mb, uint8_t tc)
 {
   if(!m_instance) {
-    m_instance = new BatteryManager(mb);
+    m_instance = new BatteryManager(mb, tc);
   }
 
   return m_instance;
 }
 
+BatteryManager *BatteryManager::instance()
+{
+  return instance(NULL, NULL);
+}
 
 void BatteryManager::reset()
 {

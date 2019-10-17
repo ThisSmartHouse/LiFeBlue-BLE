@@ -78,7 +78,7 @@ void setup() {
   Serial.println("http://www.thissmarthouse.com/lifeblue");
   Serial.printf("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n\n");
 
-  batteryManager = BatteryManager::instance(MAX_BATTERIES);
+  batteryManager = BatteryManager::instance(MAX_BATTERIES, CELLS_PER_BATTERY);
   
   BLEDevice::init(CLIENT_DEVICE_NAME);
 
