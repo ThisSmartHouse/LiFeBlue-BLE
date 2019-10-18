@@ -51,7 +51,7 @@
  * This is the struct that holds the "raw" data from the battery
  * that gets updated as we receive new stats.
  */
-typedef struct batteryInfo_t {
+struct batteryInfo_t {
   
   BLEAdvertisedDevice *device = NULL;
   uint16_t  characteristicHandle;
@@ -90,7 +90,7 @@ typedef struct batteryInfo_t {
    Serial.printf("Cycles: %u\n", _i->cycleCount); \
    Serial.printf("SoC: %u%%\n", _i->soc); \
    Serial.printf("Temp: %.1f (C) %.2f (F)\n", ((float)_i->temp) / 10, (((float)_i->temp) / 10) * 1.8 + 32); \
-   for(int i = 0; i < totalCells; i++) Serial.printf("%lu (mV) ", _i->cells[i]); \
+   for(int i = 0; i < totalCells; i++) Serial.printf("%lu (mV) ", (unsigned long int)_i->cells[i]); \
    Serial.printf("\nCell High Voltage: %s\n", _i->cell_high_voltage ? "X" : "-"); \
    Serial.printf("Cell Low Voltage: %s\n", _i->cell_low_voltage ? "X" : "-"); \
    Serial.printf("Over Current When Charge: %s\n", _i->over_current_when_charge ? "X" : "-"); \
@@ -130,7 +130,7 @@ public:
 private:
     BatteryManager(uint8_t, uint8_t);
     BatteryManager(BatteryManager const &) {};
-    BatteryManager& operator=(BatteryManager const &) {};
+    BatteryManager& operator=(BatteryManager const &) { };
 
     uint32_t convertBufferStringToValue(uint8_t);
     

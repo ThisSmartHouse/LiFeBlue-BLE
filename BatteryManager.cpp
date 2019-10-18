@@ -45,8 +45,6 @@ extern "C" {
     BLEClient *client;
     BatteryManager *batteryManager;
     batteryInfo_t *currentBattery;
-    static bool capturing = false;
-    static bool fullPacket = false;
     
     batteryManager = BatteryManager::instance();
     currentBattery = batteryManager->getCurrentBattery();

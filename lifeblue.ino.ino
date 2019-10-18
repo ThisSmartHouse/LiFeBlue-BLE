@@ -22,12 +22,21 @@
 
 #include <CircularBuffer.h>
 #include <Wire.h>
-#include "lifeblue.h"
+#include <BLEDevice.h>
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include <ArduinoJson.h>
+
+#include "lifeblue.h" 
+#include "BatteryManager.h"
+#include "DisplayManager.h"
 
 BatteryManager *batteryManager;
 BLEScan *bleScanner;
 bool scanning = false;
 DisplayManager *displayManager;
+PubSubClient *mqttClient = NULL;
+WiFiClient *wifiClient = NULL;
 
 hw_timer_t *scanTimer = NULL;
 portMUX_TYPE scanTimerMux = portMUX_INITIALIZER_UNLOCKED;
@@ -61,6 +70,7 @@ void onBLEScanComplete(BLEScanResults results)
    Serial.println("- Scan Complete");
    scanning = false;
    delete bleScanner;
+   
 }
 
 void IRAM_ATTR onScanTimer()
@@ -94,6 +104,58 @@ void startDeviceScan()
   
 }
 
+void connectMqtt()
+{
+  uint8_t counter = 0;
+  String clientId;
+  
+  if(WiFi.status() != WL_CONNECTED) {
+    return;
+  }
+
+  if(mqttClient->connected()) {
+    return;
+  }
+
+  Serial.printf("- Attempting to connect to MQTT: %s\n", mqttServer);
+
+  for(counter = 0; (counter <= 60) && !mqttClient->connected(); counter++) {
+    
+    if(!mqttClient->connect(mqttClientId)) {
+      Serial.print(".");
+      delay(2000);
+      continue;
+    }
+  }
+}
+
+void connectWiFi()
+{
+  uint8_t counter = 0;
+
+  displayManager->wifiConnectScreen(0);
+  
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(SSID, wifiPassword);
+
+  Serial.printf("Attempting to connect to '%s'", SSID);
+  
+  for(counter = 0; (counter <= 60) && (WiFi.status() != WL_CONNECTED); counter++) {
+    Serial.print('.');
+    delay(500);  
+
+    displayManager->wifiConnectScreen((uint8_t)((float)counter / 60));
+  }
+
+  Serial.println("");
+  
+  if(WiFi.status() != WL_CONNECTED) {
+    Serial.println("Failed to connect to WiFi AP");  
+  } else {
+    Serial.printf("Successfully connected to %s, (ip: %s)\n", SSID, WiFi.localIP().toString().c_str());
+  }
+}
+
 /**
  * Initialize the program and start scanning for our batteries!
  */
@@ -121,9 +183,72 @@ void setup() {
   
   BLEDevice::init(CLIENT_DEVICE_NAME);
 
+  wifiClient = new WiFiClient();
+  mqttClient = new PubSubClient(*wifiClient);
+  mqttClient->setServer(mqttServer, 1883);
+
   Serial.println("- Initialized BLE Client");
   
   startDeviceScan();
+
+  randomSeed(micros());
+}
+
+void publishToMqtt(batteryInfo_t *battery)
+{
+  char buffer[1024] = {NULL};
+  uint8_t cellsPerBattery;
+  DynamicJsonDocument doc(MQTT_OBJECT_SIZE);
+  JsonArray cells;
+  JsonObject status;
+  size_t outputSize;
+  char *topicBuffer;
+  
+  // mqttTopic includes '%s' so we count that, and the address it 17 chars (+ null) 
+  topicBuffer = (char *)os_zalloc(strlen(mqttTopic) - 2 + 17 + 1);
+  
+  sprintf(topicBuffer, mqttTopic, battery->device->getAddress().toString().c_str());
+  
+  Serial.printf("- Publishing %s to %s\n", battery->device->getAddress().toString().c_str(), topicBuffer);
+  
+  cellsPerBattery = batteryManager->getTotalCells();
+
+  cells = doc.createNestedArray("cells");
+  status = doc.createNestedObject("status");
+
+  doc["battery_id"] = battery->device->getAddress().toString().c_str();
+  doc["voltage"] = battery->voltage;
+  doc["current"] = battery->current;
+  doc["soc"] = battery->soc;
+  doc["temp"] = battery->temp;
+  doc["cycles"] = battery->cycleCount;
+  doc["ampHrs"] = battery->ampHrs;
+
+  for(int i = 0; i < cellsPerBattery; i++) {
+    cells.add(battery->cells[i]);
+  }
+  
+  status["cell_high_voltage"] = battery->cell_high_voltage;
+  status["cell_low_voltage"] = battery->cell_low_voltage;
+  status["over_current_when_charge"] = battery->over_current_when_charge;
+  status["over_current_when_discharge"] = battery->over_current_when_discharge;
+  status["low_temp_when_charge"] = battery->low_temp_when_charge;
+  status["low_temp_when_discharge"] = battery->low_temp_when_discharge;
+  status["high_temp_when_charge"] = battery->high_temp_when_charge;
+  status["high_temp_when_discharge"] = battery->high_temp_when_discharge;
+  status["short_circuited"] = battery->short_circuited;
+
+  outputSize = serializeJson(doc, buffer);  
+
+  if(!mqttClient->connected()) {
+    Serial.printf("- MQTT Client not connected");
+  }
+  
+  if(!mqttClient->publish(topicBuffer, buffer)) {
+    Serial.printf("- FAILED: Could not publish to MQTT\n");
+  }
+  
+  free(topicBuffer);
   
 }
 
@@ -134,8 +259,7 @@ void setup() {
  * via MQTT
  */
 void loop() {
-
-    
+  
   if(scanning) {
   
     if(scanTimerTick) {
@@ -156,7 +280,26 @@ void loop() {
     return;
   } 
 
+  if(WiFi.status() != WL_CONNECTED) {
+    connectWiFi();
+    return;
+  } else {
+    if(!mqttClient->connected()) {
+      connectMqtt();
+    }
+  }
+  
   displayManager->statusScreen();
-  batteryManager->loop();
+
+  batteryManager->loop(); // Give the batteries 
+
+  if(mqttClient->connected()) {
+    for(int i = 0; i < batteryManager->getTotalBatteries(); i++) {
+      publishToMqtt(batteryManager->getBattery(i));
+    }
+
+    mqttClient->loop();
+  }
+  
   delay(5000);
 }

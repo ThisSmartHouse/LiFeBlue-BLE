@@ -26,6 +26,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include "BatteryManager.h"
+#include <WiFi.h>
 
 #ifndef SCREEN_WIDTH
 #define SCREEN_WIDTH 128
@@ -53,13 +54,14 @@ public:
 
   void scanningScreen(uint8_t);
   void statusScreen();
-  
+  void wifiConnectScreen(uint8_t);
+
   static DisplayManager *instance();
 
 private:
   DisplayManager();
   DisplayManager(DisplayManager const &) {};
-  DisplayManager& operator=(DisplayManager const &) {};
+  DisplayManager& operator=(DisplayManager const &) { };
   
   void drawProgress(uint8_t, uint8_t, uint8_t, uint8_t, uint8_t);
     

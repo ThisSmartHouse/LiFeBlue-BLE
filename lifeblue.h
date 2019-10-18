@@ -23,10 +23,6 @@
 #ifndef LIFEBLUE_H_
 #define LIFEBLUE_H_
 
-#include <BLEDevice.h>
-#include "BatteryManager.h"
-#include "DisplayManager.h"
-
 #define CLIENT_DEVICE_NAME "lifeblue-client"
 
 #ifndef SERIAL_BAUD
@@ -41,13 +37,20 @@
 #define CELLS_PER_BATTERY 4
 #endif
 
+static const char *SSID = "YOURSSID";
+static const char *wifiPassword = "YOURPWD";
+static const char *mqttClientId = "lifeblue-mon";
+static const char *mqttServer = "broker.hivemq.com";
+static const char *mqttTopic = "/tsh/rv/batteries/%s";
+
+#define MQTT_OBJECT_SIZE JSON_ARRAY_SIZE(4) + 2*JSON_OBJECT_SIZE(9)
+
 // The service UUID of the LiFeBlue battery
 static BLEUUID serviceUUID((uint16_t)0xffe0);
 static BLEUUID    charUUID((uint16_t)0xffe4);
 
-int16_t getBufferValue(uint8_t);
-void processBuffer();
-static void notifyCallback(BLERemoteCharacteristic *, uint8_t *, size_t, bool);
 void onBLEScanComplete(BLEScanResults);
-
+void connectWiFi();
+void startDeviceScan();
+void IRAM_ATTR onScanTimer();
 #endif

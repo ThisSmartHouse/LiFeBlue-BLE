@@ -136,11 +136,20 @@ void DisplayManager::scanningScreen(uint8_t percent)
   display->display();
 }
 
+void DisplayManager::wifiConnectScreen(uint8_t percent)
+{
+  display->clearDisplay();
+  display->setCursor(0,20);
+  display->print("Connecting WiFi..");
+  drawProgress(0, 30, 120, 20, percent);
+  display->display();
+}
+
 void DisplayManager::statusScreen()
 {
   batteryInfo_t *batteryInfo;
   uint8_t totalCells;
-  
+    
   if(batteryManager->getTotalBatteries() == 0) {
     display->clearDisplay();
     display->setCursor(0,0);
@@ -174,9 +183,17 @@ void DisplayManager::statusScreen()
 
     for(int i = 0; (i < 5) && (i < totalCells); i++) {
       display->printf("%d: %umV\n", i+1, batteryInfo->cells[i]);
-      display->setCursor(65, 20+ ((i+1) * 10));
+      display->setCursor(65, 20+ ((i+1) * 8));
     }
     
+  }
+
+  if(WiFi.status() == WL_CONNECTED) {
+    display->setCursor(0, 56);
+    display->println(WiFi.localIP().toString().c_str());
+    display->setCursor(110, 0);
+    display->print(2 * (WiFi.RSSI() + 100));
+    display->print("%");
   }
   
   display->display();
