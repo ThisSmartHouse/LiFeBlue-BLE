@@ -88,6 +88,10 @@ DisplayManager *DisplayManager::m_instance = NULL;
 
 DisplayManager::DisplayManager()
 {
+#if defined(WIFI_LoRa_32) || defined(WIFI_LoRa_32_V2)
+  Wire.begin(4, 15);
+#endif
+
   display = new Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET_PIN);
   batteryManager = BatteryManager::instance();
 }

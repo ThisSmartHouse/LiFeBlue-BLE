@@ -2,7 +2,7 @@
   +----------------------------------------------------------------------+
   | LiFeBlue Bluetooth Interface                                         |
   +----------------------------------------------------------------------+
-  | Copyright (c) 2017-2019 Internet Technology Solutions, LLC,          |
+  | Copyright (c) 2017-2020 Internet Technology Solutions, LLC,          |
   +----------------------------------------------------------------------+
   | Licensed under the Apache License, Version 2.0 (the "License");      |
   | you may not use this file except in compliance with the License. You |
@@ -291,7 +291,7 @@ void loop() {
   
   displayManager->statusScreen();
 
-  batteryManager->loop(); // Give the batteries 
+  batteryManager->loop(); // Give the batteries a chance to update
 
   if(mqttClient->connected()) {
     for(int i = 0; i < batteryManager->getTotalBatteries(); i++) {

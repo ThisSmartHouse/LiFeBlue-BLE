@@ -37,7 +37,11 @@
 #endif
 
 #ifndef OLED_RESET_PIN
+#if defined(WIFI_LoRa_32) || defined(WIFI_LoRa_32_V2)
+#define OLED_RESET_PIN 16
+#else
 #define OLED_RESET_PIN -1
+#endif
 #endif
 
 #ifndef OLED_ADDRESS
