@@ -45,7 +45,7 @@
 #define LIFE_LOW_TEMP_WHEN_CHARGE 0x4
 #define LIFE_HIGH_TEMP_WHEN_DISCHARGE 0x2
 #define LIFE_HIGH_TEMP_WHEN_CHARGE 0x1
-#define LIFE_SHORT_CIRCUITED 0x10
+#define LIFE_SHORT_CIRCUITED 0x20  // changed from 0x10 to 0x20 per data sheet – JR
 
 /**
  * This is the struct that holds the "raw" data from the battery
@@ -58,7 +58,7 @@ struct batteryInfo_t {
   CircularBuffer<char, 512> *buffer = NULL;
   
   uint32_t voltage; // voltage in mV
-  uint32_t current; // current in mA
+  int32_t  current; // current in mA  -- Needs a signed int to hold negative values – JR
   uint32_t ampHrs;  // ampHrs in mAh
   uint16_t cycleCount; // cycles
   uint16_t soc; // State of Charge (%)
