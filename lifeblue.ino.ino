@@ -166,6 +166,9 @@ void setup() {
   for(int i = 0; (i < 50000) && !Serial; i++) {
     delay(1);
   }
+  
+  // Added Heltec display begin function – JR
+  Heltec.begin(true /*DisplayEnable Enable*/, false /*LoRa Enable*/, true /*Serial Enable*/);  
 
   Serial.println("LiFeBlue ESP32 Battery Monitor");
   Serial.println("(c) 2019 Internet Technology Solutions / This Smart House");
