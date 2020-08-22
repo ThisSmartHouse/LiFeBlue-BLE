@@ -184,8 +184,12 @@ uint32_t BatteryManager::convertBufferStringToValue(uint8_t len)
   switch(strlen(buf)) {
     case 4:
       return __builtin_bswap16(strtoul(buf, NULL, 16));
-    case 8:
-      return __builtin_bswap32(strtoul(buf, NULL, 16));
+    case 8: // Fix for negative AMP values -- JR
+      long newNum = __builtin_bswap32(strtoul(buf, NULL, 16));
+      if (newNum < 0) {
+        newNum = ((newNum ^ 0xFFFFFFFF) +1 ) * -1;
+      }
+    return newNum; // END - Fix for negative AMP values -- JR
   }
 
   return -1;
