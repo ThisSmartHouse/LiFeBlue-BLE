@@ -133,9 +133,9 @@ void BatteryManager::processBuffer()
     return;
   }
 
-  currentBattery->voltage = convertBufferStringToValue(8);
+  currentBattery->voltage = (uint32_t)convertBufferStringToValue(8);
   currentBattery->current = convertBufferStringToValue(8);
-  currentBattery->ampHrs = convertBufferStringToValue(8);
+  currentBattery->ampHrs = (uint32_t)convertBufferStringToValue(8);
   
   currentBattery->cycleCount = convertBufferStringToValue(4);
   currentBattery->soc = convertBufferStringToValue(4);
@@ -169,7 +169,7 @@ void BatteryManager::processBuffer()
  * things but we're not going to be compiling anything for ESP32s using anything
  * but a GCC compiler here.
  */
-uint32_t BatteryManager::convertBufferStringToValue(uint8_t len)
+int32_t BatteryManager::convertBufferStringToValue(uint8_t len)
 {
   char buf[9] = {NULL};
 
@@ -184,12 +184,12 @@ uint32_t BatteryManager::convertBufferStringToValue(uint8_t len)
   switch(strlen(buf)) {
     case 4:
       return __builtin_bswap16(strtoul(buf, NULL, 16));
-    case 8: // Fix for negative AMP values -- JR
-      long newNum = __builtin_bswap32(strtoul(buf, NULL, 16));
-      if (newNum < 0) {
-        newNum = ((newNum ^ 0xFFFFFFFF) +1 ) * -1;
-      }
-    return newNum; // END - Fix for negative AMP values -- JR
+    case 8:  // Fixed for negative AMP values -- JR
+      int32_t newNum = __builtin_bswap32(strtoul(buf, NULL, 16));
+      if (newNum < 0) { 
+      newNum = ((newNum ^ 0xFFFFFFFF) +1 ) * -1;
+  }
+     return newNum; // END - Fixed for negative AMP values -- JR
   }
 
   return -1;
