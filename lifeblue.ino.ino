@@ -171,7 +171,10 @@ void setup() {
   }
   
   Serial.println("LiFeBlue ESP32 Battery Monitor");
-  
+  Serial.println("(c) 2019-2020 Internet Technology Solutions / This Smart House");
+  Serial.println("http://www.thissmarthouse.com/lifeblue");
+  Serial.printf("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n\n");
+
   scanTimer = timerBegin(0, 80, true);
   timerAttachInterrupt(scanTimer, &onScanTimer, true);
   timerAlarmWrite(scanTimer, 1000000, true);
