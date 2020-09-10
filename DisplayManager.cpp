@@ -88,11 +88,11 @@ DisplayManager *DisplayManager::m_instance = NULL;
 
 DisplayManager::DisplayManager()
 {
-#if defined(WIFI_LoRa_32) || defined(WIFI_LoRa_32_V2)
-  Wire.begin(4, 15);
-#endif
-
+  Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN);
   display = new Adafruit_SSD1306(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET_PIN);
+
+  Serial.printf("- Initialized SSD1306 (SDA: %d, SCL: %d, RST: %d, Address: 0x%x)\n", OLED_SDA_PIN, OLED_SCL_PIN, OLED_RESET_PIN, OLED_ADDRESS); 
+  
   batteryManager = BatteryManager::instance();
 }
 

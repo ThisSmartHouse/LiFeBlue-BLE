@@ -38,6 +38,8 @@ DisplayManager *displayManager;
 PubSubClient *mqttClient = NULL;
 WiFiClient *wifiClient = NULL;
 
+uint8_t wifiConnectAttempts = 0;
+
 hw_timer_t *scanTimer = NULL;
 portMUX_TYPE scanTimerMux = portMUX_INITIALIZER_UNLOCKED;
 volatile bool scanTimerTick = false;
@@ -51,7 +53,7 @@ uint8_t scanTotalInterrupts;
  */
 void onBLEScanComplete(BLEScanResults results)
 {
-   batteryManager->reset();
+   //batteryManager->reset();
       
    for(int i = 0; i < results.getCount(); i++) {
      
@@ -153,6 +155,7 @@ void connectWiFi()
     Serial.println("Failed to connect to WiFi AP");  
   } else {
     Serial.printf("Successfully connected to %s, (ip: %s)\n", SSID, WiFi.localIP().toString().c_str());
+    wifiConnectAttempts = 0;
   }
 }
 
@@ -166,29 +169,36 @@ void setup() {
   for(int i = 0; (i < 50000) && !Serial; i++) {
     delay(1);
   }
-
+  
   Serial.println("LiFeBlue ESP32 Battery Monitor");
-  Serial.println("(c) 2019 Internet Technology Solutions / This Smart House");
-  Serial.println("http://www.thissmarthouse.com/lifeblue");
-  Serial.printf("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n\n");
-
-  batteryManager = BatteryManager::instance(MAX_BATTERIES, CELLS_PER_BATTERY);
-  displayManager = DisplayManager::instance();
-
+  
   scanTimer = timerBegin(0, 80, true);
   timerAttachInterrupt(scanTimer, &onScanTimer, true);
   timerAlarmWrite(scanTimer, 1000000, true);
-  
-  displayManager->setup();
+
+  Serial.println("- Initializing BLE Client");
   
   BLEDevice::init(CLIENT_DEVICE_NAME);
+  
+  Serial.println("- Initialized BLE Client");
+  
+  Serial.println("- Initializing Display");
+  
+  displayManager = DisplayManager::instance();
+  displayManager->setup();
+  
+  Serial.println("- Initialized Display");
 
+  Serial.println("- Initializing WiFI and MQTT");
+  
   wifiClient = new WiFiClient();
   mqttClient = new PubSubClient(*wifiClient);
   mqttClient->setServer(mqttServer, 1883);
-
-  Serial.println("- Initialized BLE Client");
   
+  Serial.println("- Initialized WiFI and MQTT");
+
+  batteryManager = BatteryManager::instance();
+    
   startDeviceScan();
 
   randomSeed(micros());
@@ -281,8 +291,13 @@ void loop() {
   } 
 
   if(WiFi.status() != WL_CONNECTED) {
-    connectWiFi();
-    return;
+    
+    if(wifiConnectAttempts < WIFI_CONNECT_ATTEMPTS) {
+      wifiConnectAttempts++;
+      connectWiFi();
+      return;
+    }       
+    
   } else {
     if(!mqttClient->connected()) {
       connectMqtt();

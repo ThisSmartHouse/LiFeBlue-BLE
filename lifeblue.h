@@ -37,6 +37,10 @@
 #define CELLS_PER_BATTERY 4
 #endif
 
+#ifndef WIFI_CONNECT_ATTEMPTS
+#define WIFI_CONNECT_ATTEMPTS 3
+#endif
+
 static const char *SSID = "YOURSSID";
 static const char *wifiPassword = "YOURPWD";
 static const char *mqttClientId = "lifeblue-mon";
