@@ -133,6 +133,11 @@ void BatteryManager::processBuffer()
     return;
   }
 
+  if(!isValidChecksum()) {
+    Serial.printf("- Throwing away buffer for '%s' due to invalid checksum", currentBattery->device->getAddress().toString().c_str());
+    return;
+  }
+
   currentBattery->voltage = (uint32_t)convertBufferStringToValue(8);
   currentBattery->current = convertBufferStringToValue(8);
   currentBattery->ampHrs = (uint32_t)convertBufferStringToValue(8);
@@ -161,6 +166,46 @@ void BatteryManager::processBuffer()
   DEBUG_DUMP_BATTERYINFO(currentBattery);
 }
 
+bool BatteryManager::isValidChecksum()
+{
+  uint32_t sum = 0;
+  uint32_t checksum = 0;
+  CircularBuffer<char, 512> &buffer = *currentBattery->buffer;
+  char temp[3] = {NULL};
+  char t;
+  
+  // Byte 112 should be end-of-buffer
+  if(buffer[112] != (char)0x51) {
+    return false;
+  }
+
+  // Add up all the bytes in the buffer
+  for(int i = 0; i < 108; i += 2) {
+    temp[0] = buffer[i];
+    temp[1] = buffer[i+1];
+    temp[2] = NULL;
+
+    checksum = strtoul(temp, NULL, 16);
+    sum += checksum;
+  }
+
+  temp[0] = buffer[108];
+  temp[1] = buffer[109];
+  temp[2] = NULL;
+
+  checksum = strtoul(temp, NULL, 16) << 8;
+ 
+  temp[0] = buffer[110];
+  temp[1] = buffer[111];
+  temp[2] = NULL;
+    
+  checksum += strtoul(temp, NULL, 16);
+
+  //Serial.printf("\n===== Checksum: %#06x     Sum: %#06x\n\n", checksum, sum);
+
+  return (sum == checksum);
+}
+
 /**
  * Helper method. Given a length of ASCII data (in bytes) from the buffer,
  * it extracts the numeric value it represents. Since the data comes across
@@ -184,12 +229,15 @@ int32_t BatteryManager::convertBufferStringToValue(uint8_t len)
   switch(strlen(buf)) {
     case 4:
       return __builtin_bswap16(strtoul(buf, NULL, 16));
-    case 8:  // Fixed for negative AMP values -- JR
+    case 8:  
+      
       int32_t newNum = __builtin_bswap32(strtoul(buf, NULL, 16));
+      
       if (newNum < 0) { 
-      newNum = ((newNum ^ 0xFFFFFFFF) +1 ) * -1;
-  }
-     return newNum; // END - Fixed for negative AMP values -- JR
+        newNum = ((newNum ^ 0xFFFFFFFF) +1 ) * -1;
+      }
+      
+      return newNum; 
   }
 
   return -1;

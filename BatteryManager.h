@@ -132,6 +132,8 @@ private:
     BatteryManager(BatteryManager const &) {};
     BatteryManager& operator=(BatteryManager const &) { };
 
+    bool isValidChecksum();
+      
     int32_t convertBufferStringToValue(uint8_t);  // Return a int32_t so we can capture the signed current value.
                                                   // Need to cast the Voltage and AmpHrs calls to (uint32_t)
     
