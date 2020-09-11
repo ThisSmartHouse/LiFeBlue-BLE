@@ -250,6 +250,8 @@ BatteryManager::BatteryManager(uint8_t mb, uint8_t tc)
   maxBatteries = mb;
   totalBatteries = 0;
   totalCells = (tc > MAX_BATTERY_CELLS) ? MAX_BATTERY_CELLS : tc;
+
+  Serial.printf("- Created BatteryManager with %d batteries maximum (%d cells each)\n", maxBatteries, totalCells);
   
   batteryData = (batteryInfo_t **)os_zalloc(maxBatteries * sizeof(batteryInfo_t *));
 

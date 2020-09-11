@@ -178,6 +178,12 @@ void setup() {
   Serial.println("http://www.thissmarthouse.com/lifeblue");
   Serial.printf("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n\n");
 
+  Serial.println("- Initializing Battery Manager");
+  
+  batteryManager = BatteryManager::instance(MAX_BATTERIES, CELLS_PER_BATTERY);
+
+  Serial.println("- Battery Manager Initialized");
+
   scanTimer = timerBegin(0, 80, true);
   timerAttachInterrupt(scanTimer, &onScanTimer, true);
   timerAlarmWrite(scanTimer, 1000000, true);
@@ -200,10 +206,9 @@ void setup() {
   wifiClient = new WiFiClient();
   mqttClient = new PubSubClient(*wifiClient);
   mqttClient->setServer(mqttServer, 1883);
+  mqttClient->setBufferSize(512);
   
   Serial.println("- Initialized WiFI and MQTT");
-
-  batteryManager = BatteryManager::instance();
     
   startDeviceScan();
 
