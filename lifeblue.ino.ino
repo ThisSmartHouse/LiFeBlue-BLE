@@ -112,6 +112,7 @@ void connectMqtt()
   String clientId;
   
   if(WiFi.status() != WL_CONNECTED) {
+    Serial.println("- Cannot connect to MQTT: WiFi disconnected");
     return;
   }
 
@@ -126,7 +127,9 @@ void connectMqtt()
     if(!mqttClient->connect(mqttClientId)) {
       Serial.print(".");
       delay(2000);
-      continue;
+    } else {
+      Serial.printf("- Connected to %s\n", mqttServer);
+      return;
     }
   }
 }

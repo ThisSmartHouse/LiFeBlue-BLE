@@ -20,6 +20,8 @@
   +----------------------------------------------------------------------+
 */
 
+#include "wifi_config.h"
+
 #ifndef LIFEBLUE_H_
 #define LIFEBLUE_H_
 
@@ -41,11 +43,6 @@
 #define WIFI_CONNECT_ATTEMPTS 3
 #endif
 
-static const char *SSID = "YOURSSID";
-static const char *wifiPassword = "YOURPWD";
-static const char *mqttClientId = "lifeblue-mon";
-static const char *mqttServer = "broker.hivemq.com";
-static const char *mqttTopic = "/tsh/rv/batteries/%s";
 
 #define MQTT_OBJECT_SIZE JSON_ARRAY_SIZE(4) + 2*JSON_OBJECT_SIZE(9)
 
