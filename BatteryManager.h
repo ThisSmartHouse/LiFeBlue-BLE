@@ -45,7 +45,7 @@
 #define LIFE_LOW_TEMP_WHEN_CHARGE 0x4
 #define LIFE_HIGH_TEMP_WHEN_DISCHARGE 0x2
 #define LIFE_HIGH_TEMP_WHEN_CHARGE 0x1
-#define LIFE_SHORT_CIRCUITED 0x20  // changed from 0x10 to 0x20 per data sheet – JR
+#define LIFE_SHORT_CIRCUITED 0x20
 
 /**
  * This is the struct that holds the "raw" data from the battery

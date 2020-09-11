@@ -119,8 +119,6 @@ BatteryManager *BatteryManager::m_instance = NULL;
  * 
  * SUM_byte1H, SUM_byte1L, SUM_byte2H, SUM_byte2L
  * 
- * At the moment I don't try to confirm the values we've read with the checksum, maybe later.
- * 
  * For the status fields (status and afeStatus) these are bitmasks. I don't know what all of the bits represent
  * but I know a good portion of them which I have pulled out as booleans in the status and provided matching
  * defines for.
@@ -175,7 +173,7 @@ bool BatteryManager::isValidChecksum()
   char t;
   
   // Byte 112 should be end-of-buffer
-  if(buffer[112] != (char)0x51) {
+  if(buffer[112] != (char)0x29) {
     return false;
   }
 
