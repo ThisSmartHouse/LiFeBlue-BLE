@@ -23,6 +23,8 @@
 #include "BatteryManager.h"
 #include "lifeblue.h"
 
+//#define DUMP_HEX_BATTERY_BUFFER  // Comment this out to stop outputting the buffer in hex / ascii -- JR
+
 extern "C" {
 
   /**
@@ -79,6 +81,10 @@ extern "C" {
           Serial.println("");
           
           batteryManager->processBuffer();
+
+#ifdef DUMP_HEX_BATTERY_BUFFER
+         hex_dump(currentBattery->buffer, 512, "Battery buffer before clear");
+#endif
           
           currentBattery->buffer->clear();
           batteryManager->setCurrentBattery(NULL);
@@ -135,6 +141,15 @@ void BatteryManager::processBuffer()
     Serial.printf("- Throwing away buffer for '%s' due to invalid checksum", currentBattery->device->getAddress().toString().c_str());
     return;
   }
+  // Adding Battery bname, id.
+  // battery->is_valid is set in the isValidChecksum() function.
+  // "name" needs to be cleaned as LifeBLue app interface adds a '\n' to the name. -- JR
+  char *batteryName = (char *)currentBattery->device->getName().c_str();
+  batteryName[strlen(batteryName) - 1] = '\0';
+  //char bname[20] = {NULL};
+  memcpy(currentBattery->bname, batteryName, strlen(batteryName));
+  char *id = (char *)currentBattery->device->getAddress().toString().c_str();
+  memcpy(currentBattery->id, id, strlen(id));
 
   currentBattery->voltage = (uint32_t)convertBufferStringToValue(8);
   currentBattery->current = convertBufferStringToValue(8);
@@ -166,6 +181,9 @@ void BatteryManager::processBuffer()
 
 bool BatteryManager::isValidChecksum()
 {
+#ifdef DUMP_HEX_BATTERY_BUFFER
+  hex_dump(currentBattery->buffer, 512, "Battery Checksum buffer");
+#endif
   uint32_t sum = 0;
   uint32_t checksum = 0;
   CircularBuffer<char, 512> &buffer = *currentBattery->buffer;
@@ -200,8 +218,9 @@ bool BatteryManager::isValidChecksum()
   checksum += strtoul(temp, NULL, 16);
 
   //Serial.printf("\n===== Checksum: %#06x     Sum: %#06x\n\n", checksum, sum);
+  currentBattery->is_valid = (sum == checksum); // Adding is_valid propery value -- JR
 
-  return (sum == checksum);
+  return currentBattery->is_valid;  // return battery buffer validity state -- JR
 }
 
 /**

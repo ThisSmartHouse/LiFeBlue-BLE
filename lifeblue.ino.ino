@@ -31,6 +31,11 @@
 #include "BatteryManager.h"
 #include "DisplayManager.h"
 
+#include "hex_dump.h"
+
+//#define DUMP_HEX_BATTERY_BUFFER  // Comment this out to stop outputting the buffer in hex / ascii -- JR
+
+
 BatteryManager *batteryManager;
 BLEScan *bleScanner;
 bool scanning = false;
@@ -124,7 +129,7 @@ void connectMqtt()
 
   for(counter = 0; (counter <= 60) && !mqttClient->connected(); counter++) {
     
-    if(!mqttClient->connect(mqttClientId)) {
+  if (!mqttClient->connect(mqttClientId, mqttUser, mqttPassword)) {
       Serial.print(".");
       delay(2000);
     } else {
@@ -224,20 +229,33 @@ void publishToMqtt(batteryInfo_t *battery)
   JsonObject status;
   size_t outputSize;
   char *topicBuffer;
-  
+    
+  Serial.printf("\n\n ============ MQTT Publish Battery ========== \nIs battery buffer valid: %s\n", battery->is_valid ? "Yes" : "No");
+
+  if (battery->is_valid) {
+#ifdef DUMP_HEX_BATTERY_BUFFER
+    hex_dump((char *)battery->buffer, 512, "MQTT -- batteryInfo_t");
+#endif
+    Serial.println("Valid Battery buffer == processing MQTT publish");
+
   // mqttTopic includes '%s' so we count that, and the address it 17 chars (+ null) 
   topicBuffer = (char *)os_zalloc(strlen(mqttTopic) - 2 + 17 + 1);
   
-  sprintf(topicBuffer, mqttTopic, battery->device->getAddress().toString().c_str());
+  sprintf(topicBuffer, mqttTopic, (char *)battery->id);
   
-  Serial.printf("- Publishing %s to %s\n", battery->device->getAddress().toString().c_str(), topicBuffer);
+  Serial.println("MQTT Publish printing battery info:");
+  Serial.printf("==== %s RSSI value: %d ====\n", (char *)battery->bname, battery->device->getRSSI());
+  Serial.printf("- Publishing %s [%s] to %s\n", (char *)battery->bname, (char *)battery->id, topicBuffer);
+
   
   cellsPerBattery = batteryManager->getTotalCells();
 
   cells = doc.createNestedArray("cells");
   status = doc.createNestedObject("status");
 
-  doc["battery_id"] = battery->device->getAddress().toString().c_str();
+  doc["battery_name"] = (char *)battery->bname;
+  doc["RSSI"] = battery->device->getRSSI();
+  doc["battery_id"] = (char *)battery->id;
   doc["voltage"] = battery->voltage;
   doc["current"] = battery->current;
   doc["soc"] = battery->soc;
@@ -270,7 +288,10 @@ void publishToMqtt(batteryInfo_t *battery)
   }
   
   free(topicBuffer);
-  
+
+  } else {
+    Serial.println("Skipping MQTT Publish, battery buffer is not valid.");
+  }
 }
 
 /**

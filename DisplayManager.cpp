@@ -168,10 +168,11 @@ void DisplayManager::statusScreen()
 
   batteryInfo = batteryManager->getBattery(currentBattery);
   
+  if (batteryInfo->is_valid) { // Check if the battery buffer is valid --JR
   display->clearDisplay();
   display->setCursor(0, 0);
   display->println("LiFeBlue Monitor");
-  display->print(batteryInfo->device->getAddress().toString().c_str());
+  display->printf("%s RSSI:%ddb", batteryInfo->bname, batteryInfo->device->getRSSI());
   
   display->setCursor(0,20);
   display->printf("V: %.2fV\nC: %.2fA\nSoC: %u%%\nT: %.1fC", 
@@ -194,15 +195,19 @@ void DisplayManager::statusScreen()
 
   if(WiFi.status() == WL_CONNECTED) {
     display->setCursor(0, 56);
-    display->println(WiFi.localIP().toString().c_str());
-    display->setCursor(110, 0);
-    display->print(2 * (WiFi.RSSI() + 100));
-    display->print("%");
+    display->print(WiFi.localIP().toString().c_str());
+      //display->setCursor(100, 0); // Fix the RSSI X start position to make room for the % sign so it does not wrap.Was 110 -> 100
+      //The % Was wrapping to the start of the second line and overwriting the first character. -- JR
+      display->print("  ");
+      //display->print(2 * (WiFi.RSSI() + 100)); // WiFi .RSSI returns 0 to -100db value  --JR
+      display->print(WiFi.RSSI());
+      display->print("db");  // Changed this to read db instead of %
   }
   
   display->display();
 
   currentBattery++;
+}
 }
 
 void DisplayManager::drawProgress(uint8_t x, uint8_t y, uint8_t width, uint8_t height, uint8_t percent)

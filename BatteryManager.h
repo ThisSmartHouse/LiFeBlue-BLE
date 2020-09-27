@@ -57,6 +57,9 @@ struct batteryInfo_t {
   uint16_t  characteristicHandle;
   CircularBuffer<char, 512> *buffer = NULL;
   
+  char bname[20] = {NULL}; // Battery Name -- JR
+  char id[20] = {NULL}; // Battery ID -- JR
+  bool is_valid; // Is Battery buffer valid? Checksum sets this if valid. -- JR
   uint32_t voltage; // voltage in mV
   int32_t  current; // current in mA  -- Needs a signed int to hold negative values – JR
   uint32_t ampHrs;  // ampHrs in mAh
@@ -82,14 +85,17 @@ struct batteryInfo_t {
 
 // Handy debug dump function that dumps out our struct so we can see
 #define DEBUG_DUMP_BATTERYINFO(_i) \
-   Serial.printf("BatteryInfo for %s\n", _i->device->getAddress().toString().c_str()); \
+   Serial.printf("\nBattery Name %s\n", (char *)_i->bname); \
+   Serial.printf("BatteryInfo for %s\n", (char *)_i->id); \
    Serial.println("-=-=-=-=-=-=-=-=-=-"); \
+   Serial.printf("Valid Buffer: %s", _i->is_valid ? "Yes\n" : "No\n"); \
    Serial.printf("Voltage: %.2fV\n", ((float)_i->voltage) / 1000); \
    Serial.printf("Current: %.2fA\n", ((float)_i->current) / 1000); \
    Serial.printf("Amp Hrs: %.2fAh\n", ((float)_i->ampHrs) / 1000); \
    Serial.printf("Cycles: %u\n", _i->cycleCount); \
    Serial.printf("SoC: %u%%\n", _i->soc); \
    Serial.printf("Temp: %.1f (C) %.2f (F)\n", ((float)_i->temp) / 10, (((float)_i->temp) / 10) * 1.8 + 32); \
+   Serial.printf("RSSI: %d db\n", _i->device->getRSSI()); \
    for(int i = 0; i < totalCells; i++) Serial.printf("%lu (mV) ", (unsigned long int)_i->cells[i]); \
    Serial.printf("\nCell High Voltage: %s\n", _i->cell_high_voltage ? "X" : "-"); \
    Serial.printf("Cell Low Voltage: %s\n", _i->cell_low_voltage ? "X" : "-"); \
@@ -100,7 +106,7 @@ struct batteryInfo_t {
    Serial.printf("High Temp When Charge: %s\n", _i->high_temp_when_charge ? "X" : "-"); \
    Serial.printf("High Temp When Discharge: %s\n", _i->high_temp_when_discharge ? "X" : "-"); \
    Serial.printf("Is Short Circuited: %s\n", _i->short_circuited ? "X" : "-"); \
-   Serial.printf("");
+   Serial.printf("\n");
 
 extern "C" {
   void _bm_char_callback(BLERemoteCharacteristic *, uint8_t *, size_t, bool);

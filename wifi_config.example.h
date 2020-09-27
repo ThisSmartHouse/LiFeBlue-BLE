@@ -10,5 +10,7 @@ static const char *wifiPassword = "YourPassword";
 static const char *mqttClientId = "lifeblue-mon";
 static const char *mqttServer = "broker.hivemq.com";
 static const char *mqttTopic = "/rv/sensors/batteries/%s";
+static const char *mqttUser = "YourMQTTBrokerUserId";
+static const char *mqttPassword = "YourMQTTBrokerPassword";
 
 #endif
