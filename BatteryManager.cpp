@@ -431,12 +431,16 @@ void BatteryManager::loop()
     currentBattery = pollingQueue.pop();
 
     Serial.printf("\n- Connecting to Battery: %s\n", currentBattery->device->getAddress().toString().c_str());
-    
+    /* //This causes a crash commenting it out.  
+    // CORRUPT HEAP: Bad head at 0x3fff6594. Expected 0xabba1234 got 0x3fff761c
+    // assertion "head != NULL" failed: file "/home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/heap/multi_heap_poisoning.c", line 214, function: multi_heap_free
+    // abort() was called at PC 0x40106ebf on core 1
+ 
     if(client) {
       delete client;
       client = NULL;
     }
-    
+    */
     client = BLEDevice::createClient();
     
     if(!client->connect(currentBattery->device)) {
